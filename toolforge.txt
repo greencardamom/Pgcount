@@ -1,0 +1,19 @@
+Notes for running on Toolforge. Adjust paths to your project directory.
+
+== To run 1-time (development) ==
+
+jsub -once -N "oneoff" -e /data/project/botwikiawk/pgcount/stdioer/oneoff.stderr -o /data/project/botwikiawk/pgcount/stdioer/oneoff.stdout -wd /data/project/botwikiawk/pgcount pgcount.awk -h en -d wikipedia.org
+
+== To run from cron (production) ==
+
+English:
+
+4 4 1,15 * * /usr/bin/jsub -once -continuous -quiet -N en.pgcount.awk -l mem_free=100M,h_vmem=200M -e /data/project/botwikiawk/pgcount/stdioer/en.pgcount.stderr -o /data/project/botwikiawk/pgcount/stdioer/en.pgcount.stdout -v "AWKPATH=.:/data/project/botwikiawk/BotWikiAwk/lib" -v "PATH=/sbin:/bin:/usr/sbin:/usr/local/bin:/usr/bin:/data/project/botwikiawk/BotWikiAwk/bin" -wd /data/project/botwikiawk/pgcount /data/project/botwikiawk/pgcount/pgcount.awk -h en -d wikipedia.org
+
+Turkish:
+
+9 4 1,15 * * /usr/bin/jsub -once -continuous -quiet -N tr.pgcount.awk -l mem_free=100M,h_vmem=200M -e /data/project/botwikiawk/pgcount/stdioer/tr.pgcount.stderr -o /data/project/botwikiawk/pgcount/stdioer/tr.pgcount.stdout -v "AWKPATH=.:/data/project/botwikiawk/BotWikiAwk/lib" -v "PATH=/sbin:/bin:/usr/sbin:/usr/local/bin:/usr/bin:/data/project/botwikiawk/BotWikiAwk/bin" -wd /data/project/botwikiawk/pgcount /data/project/botwikiawk/pgcount/pgcount.awk -h tr -d wikipedia.org
+
+== Clear cache ==
+
+Once it is up and running, every 3 to 6 months create a cron entry that deletes db/*.wikipedia.org.index.db to clear the cache file(s) to account for username renames. The program will rebuild the cache from current API data when it sees the cache file missing.
