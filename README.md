@@ -12,10 +12,10 @@ Pgcount generates [Wikipedia:List of Wikipedians by article count](https://en.wi
 
 * Designed for unlimited scalability, Wikipedia database size does not matter.
 * Low memory and CPU use.
-* Designed to fail and recover, state information is preserved.
+* Designed to fail and recover mid-process, state information is preserved.
 * No SQL or queries, API driven.
 * Caches between runs.
-* Flexible for use with multiple languages.
+* Flexible for use with multiple wiki languages.
 
 Dependencies 
 ========
