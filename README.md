@@ -43,13 +43,6 @@ Installation
 			Engine = 3
 			break
 
-	C. In section #10, replace the two lines starting with "delete Config" with the following:
-
-		if(BotName !~ /pgcount/) {
-			delete Config
-			readprojectcfg()
-		}
-
 4. Set ~/Pgcount/pgcount.awk to mode 750, and change the first shebang line to the location of awk on your system
 
 5. Edit pgcount.awk in the "BEGIN{}" section is a place for you email address to send error reports to, and a few harded coded paths for common unix utilities.
