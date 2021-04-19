@@ -2,12 +2,12 @@
 
 #
 # Count number of articles created by top 10,000 users
-# https://en.wikipedia.org/wiki/Wikipedia:List_of_Wikipedians_by_article_count
+# https://github.com/greencardamom/Pgcount
 #
 
 # The MIT License (MIT)
 #
-# Copyright (c) 2019-2020 by User:GreenC (at en.wikipedia.org)
+# Copyright (c) 2019-2021 by User:GreenC (at en.wikipedia.org)
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,7 @@ BEGIN {
 #
 #   ~/log/en.wikipedia.org.allpages.done     - block log of position in allpages.db
 #   ~/log/en.wikipedia.org.allpages.offset   - rolling 10000-long artice log of position in allpages.db
-#
+#   
 
 BEGIN {
 
@@ -73,20 +73,21 @@ BEGIN {
     exit(0)
   }
 
-  debug1 = 0
+  debug1 = 0 
 
-  # Exe["sort"] = "LC_ALL=C /usr/bin/sort"  - this is faster but will change sort order only do when rebuilding cache
+  # Exe["sort"] = "LC_ALL=C /usr/bin/sort"  - this is faster but will change sort order. only safe when rebuilding cache
   Exe["sort"] = "/usr/bin/sort"
   Exe["uniq"] = "/usr/bin/uniq"
   Exe["wc"] = "/usr/bin/wc"
   Exe["printf"] = "/usr/bin/printf"
+  Exe["shuf"] = "/usr/bin/shuf"  # only required if optional toprankno feature is enabled below
 
   delete P
   P["email"] = "name@example.com"
   P["log"] = Home "log/"            # journal logging
   P["db"]  = Home "db/"             # article name database files
   P["key"] = Hostname "." Domain
-  P["blsize"] = 10000               # size of blocks ie. tail -n +#
+  P["blsize"] = 10000               # size of blocks ie. tail -n +# 
 
   # batch mode. 0 = for testing small batch or single page.
   #             1 = for production of allpages.db
@@ -96,7 +97,7 @@ BEGIN {
 
   # Translations
   # See also: search on "stats =" for an inline translation
-
+  
   # English Wikipedia
   T["en.wikipedia.org"]["mainpage"] = "Wikipedia:List of Wikipedians by article count"
   T["en.wikipedia.org"]["anonymous"] = "Anonymous"
@@ -105,17 +106,33 @@ BEGIN {
   T["en.wikipedia.org"]["User"] = "User"
   T["en.wikipedia.org"]["No"] = "No"
   T["en.wikipedia.org"]["Pages"] = "Pages"
-  T["en.wikipedia.org"]["thousand"] = ","  # Sep character for eg. 10,000
+  T["en.wikipedia.org"]["thousand"] = ","     # Separator character for numbers eg. 10,000
+  T["en.wikipedia.org"]["toprankno"] = "100"  # Optionally the Top X are displayed with no ranking
+                                              # To disable this feature set value to "0" 
 
   # Turkish Wikipedia
-  T["tr.wikipedia.org"]["mainpage"] = "Vikipedi:Başlattığı madde sayısına göre Vikipedistler listesi"
+  T["tr.wikipedia.org"]["mainpage"] = "Vikipedi:Ba?latt??? madde say?s?na göre Vikipedistler listesi"
   T["tr.wikipedia.org"]["anonymous"] = "Anonim"
-  T["tr.wikipedia.org"]["optoutpage"] = "Vikipedi:Başlattığı madde sayısına göre Vikipedistler listesi/Anonim"
-  T["tr.wikipedia.org"]["editsummary"] = "[[Kullanıcı:GreenC_bot|pgcount]] bot güncellemesi"
-  T["tr.wikipedia.org"]["User"] = "Kullanıcı"
+  T["tr.wikipedia.org"]["optoutpage"] = "Vikipedi:Ba?latt??? madde say?s?na göre Vikipedistler listesi/Anonim"
+  T["tr.wikipedia.org"]["editsummary"] = "[[Kullan?c?:GreenC_bot|pgcount]] bot güncellemesi"
+  T["tr.wikipedia.org"]["User"] = "Kullan?c?"
   T["tr.wikipedia.org"]["No"] = "No"
   T["tr.wikipedia.org"]["Pages"] = "Sayfa"
-  T["tr.wikipedia.org"]["thousand"] = "."
+  T["tr.wikipedia.org"]["thousand"] = "."     # Separator character for numbers eg. 10,000
+  T["tr.wikipedia.org"]["toprankno"] = "0"    # Optionally the Top X are displayed with no ranking
+                                              # To disable this feature set value to "0" 
+
+  # Slovenian Wikipedia
+  T["sl.wikipedia.org"]["mainpage"] = "Wikipedija:Seznam Wikipedistov po ?tevilu ?lankov"
+  T["sl.wikipedia.org"]["anonymous"] = "Neznanec"
+  T["sl.wikipedia.org"]["optoutpage"] = "Wikipedija:Seznam Wikipedistov po ?tevilu ?lankov/Neznanec"
+  T["sl.wikipedia.org"]["editsummary"] = "[[Uporabnik:GreenC_bot|pgcount]] bot nadgradnja"
+  T["sl.wikipedia.org"]["User"] = "Uporabnik"
+  T["sl.wikipedia.org"]["No"] = "St"
+  T["sl.wikipedia.org"]["Pages"] = "Strani"
+  T["sl.wikipedia.org"]["thousand"] = "."     # Separator character for numbers eg. 10,000
+  T["sl.wikipedia.org"]["toprankno"] = "0"    # Optionally the Top X are displayed with no ranking
+                                              # To disable this feature set value to "0" 
 
   main()
 
@@ -132,7 +149,7 @@ function main() {
 }
 
 #
-#
+# 
 #
 function startup() {
 
@@ -146,7 +163,7 @@ function startup() {
     if (checkexists(P["db"] P["key"] ".index.db") )
       P["index"] = 1
     else
-      P["index"] = 0
+      P["index"] = 0 
   }
   else {            # error creating/finding allpages.db
     return 0
@@ -171,8 +188,8 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
     # sp = 0
     # sp = "Wikipedia talk:Bots/Requests for approval/GreenC bot 8"
     # sp = "Hydraulic fracturing by country"
-    # sp = "ᛒ"
-
+    # sp = "?"
+    
     # batch size. 1000 default
     bz = 50
 
@@ -216,7 +233,7 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
   # Run allpages.db
   #  Below method of processing allpages.db (5+ million lines) is designed to minimize memory on Toolforge grid,
   #  keep log files small, and gracefully handles frequent stops by the grid. But also works on any server.
-  #   allpages.db     = file containing complete list of millions of article titles.
+  #   allpages.db     = file containing complete list of millions of article titles. 
   #   allpages.done   = permanent log. One line equates to 10000 articles processed.
   #   allpages.offset = temporary log. One line equates to one article processed. This resets to 0-len with
   #                     each new 10000 block. If the bot halts mid-way through, it will pick up where left off.
@@ -254,7 +271,7 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
         if(offset == 0 || empty(offset) ) {
           offset = 1
         }
-        if(offset > P["blsize"] )
+        if(offset > P["blsize"] ) 
           offset = P["blsize"]
 
         removefile2(P["log"] P["key"] ".allpages.offset")
@@ -280,7 +297,7 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
         # Load Inx[][] with a 130,000 block (-60000 to 10000 to +60000 surrounding bl location in index.db)
         # reset P["misscache"] to 0
         loadindex(bl)
-
+ 
         # Iterate through the 1..10000 individual articles in artblock
         c = split(artblock, article, "\n")
         if(debug1) parallelWrite("article size = " length(article) " (" datehms() ")", "/dev/stdout", 0)
@@ -305,8 +322,8 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
         # Flush result-rawoffset.db -> result-raw.db every 10000 articles
         flushoffsets()
 
-        # Log the block complete at allpages.done
-        P["totalcache"] += P["misscache"]
+        # Log the block complete at allpages.done 
+        P["totalcache"] += P["misscache"] 
         parallelWrite(bl "-" bl + (P["blsize"] - 1) " " date8() " " datehms() " " P["misscache"] " (" P["misscache"] / P["blsize"] ") " P["totalcache"], P["log"] P["key"] ".allpages.done", 0)
         # Reached end of allpages.db, prepare for next run and exit
         if(al < (P["blsize"] + 1) ) {
@@ -318,7 +335,7 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
         # Successful completion of 10000 articles, clear offset file
         removefile2(P["log"] P["key"] ".allpages.offset")
 
-        # Reset offset to 1
+        # Reset offset to 1 
         offset = 1
 
       }
@@ -330,7 +347,7 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
 #
 # Create and upload wikisource tables
 #
-function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,sort1,sort2,res,blocks,tailstart,c1,c2,c3,c4,stats) {
+function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,sort1,sort2,res,blocks,tailstart,c1,c2,c3,c4,stats,nc,nu,na,norankblock,save_sorted,toprankno) {
 
   sort1 = Exe["sort"] " --temporary-directory=" Home "db  --buffer-size=40M --parallel=1 " P["db"] P["key"] ".result-raw.db"
   sort2 = Exe["sort"] " --temporary-directory=" Home "log --buffer-size=40M --parallel=1 -nr"
@@ -350,9 +367,11 @@ function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,s
     c3 = sys2var("awk '{c=c+$1;i++;if(i==10000)exit}END{print c}' " P["db"] P["key"] ".result-sorted.db")
     c4 = substr((c3/c1)*100,1,4)
     if(Hostname == "en")
-      stats = "As of the last update on " date8dash() " there are " sprintf("%'d", c1) " mainspace pages created by " sprintf("%'d", c2) " unique users. The top 10,000 users created " sprintf("%'d", c3) " pages or " c4 " % of Wikipedia.<ref>As a rule of thumb the top 20% of users will create approximately 80% of the articles per the [[80/20 rule]]. For example as of October 2019, the top 20% created 88% of the articles.</ref>"
+      stats = "As of the last update on " date8dash() " there are " sprintf("%'d", c1) " mainspace pages created by " sprintf("%'d", c2) " unique users. The top 10,000 users created " sprintf("%'d", c3) " pages or " c4 "% of Wikipedia.<ref>As a rule of thumb the top 20% of users will create approximately 80% of the articles per the [[80/20 rule]]. For example as of October 2019, the top 20% created 88% of the articles.</ref>" 
     else if(Hostname == "tr")
-      stats = date8dash() "'daki son güncelleme itibarıyla " gsubi(",", ".", sprintf("%'d", c2)) " tekil kullanıcı tarafından oluşturulan " gsubi(",", ".", sprintf("%'d", c1)) " ana sayfa vardır. En iyi 10.000 kullanıcı " gsubi(",", ".", sprintf("%'d", c3)) " sayfa veya Vikipedi'nin %" gsubi("[.]", ",", c4) "'ini oluşturdu."
+      stats = date8dash() "'daki son güncelleme itibar?yla " gsubi(",", ".", sprintf("%'d", c2)) " tekil kullan?c? taraf?ndan olu?turulan " gsubi(",", ".", sprintf("%'d", c1)) " ana sayfa vard?r. En iyi 10.000 kullan?c? " gsubi(",", ".", sprintf("%'d", c3)) " sayfa veya Vikipedi'nin %" gsubi("[.]", ",", c4) "'ini olu?turdu."
+    else if(Hostname == "sl")
+      stats = "Od zadnje posodobitve " date8revsp() " je " gsubi(",", ".", sprintf("%'d", c2)) " strani glavnega prostora ustvarilo " gsubi(",", ".", sprintf("%'d", c1)) " edinstvenih uporabnikov. 10.000 najbolj?ih uporabnikov je ustvarilo " gsubi(",", ".", sprintf("%'d", c3)) " strani ali " gsubi("[.]", ",", c4) "% Wikipedije."
     else
       stats = ""
   }
@@ -368,16 +387,16 @@ function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,s
     # Create table header for each of 10 tables
     if(i == 1) {
       id = 1
-      blockid = "1–1000"
+      blockid = "1?1000"
       tailstart = 1
     }
     else {
       id = (i - 1) "000"
-      blockid = (id + 1) "–" (i "000")
+      blockid = (id + 1) "?" (i "000")
       tailstart = (i - 1) "001"
     }
     html = ""
-    if(i == 1)
+    if(i == 1) 
       html = html stats "\n"
     html = html "=== " blockid " ===\n"
     html = html "{| class=\"wikitable sortable\" style=\"white-space:nowrap; width: 50%; height: 14em;\"\n"
@@ -386,9 +405,49 @@ function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,s
     html = html "! " T[P["key"]]["User"] "\n"
     html = html "! " T[P["key"]]["Pages"] "\n"
 
-    # Get a 1000 block of names
+    # Get a 1000 block of names 
     # tail -n +5000 result-sorted.db | head -n 1000
     userblock = sys2var(Exe["tail"] " -n +" tailstart " " P["db"] P["key"] ".result-sorted.db | " Exe["head"] " -n 1000")
+
+    # Create table entry for first Top X with no ranking when "toprankno" is set
+    toprankno = int(T[P["key"]]["toprankno"])
+    if(toprankno > 0 && i == 1) {
+      tailstart = 1 + toprankno
+      userblock = sys2var(Exe["tail"] " -n +" tailstart " " P["db"] P["key"] ".result-sorted.db | " Exe["head"] " -n " 1000 - toprankno)
+      rank = toprankno # reset rank 
+      norankblock = sys2var(Exe["tail"] " -n +1 " P["db"] P["key"] ".result-sorted.db | " Exe["head"] " -n " toprankno)
+
+      # random shuffle line ordering in norankblock 
+      parallelWrite(norankblock, P["log"] P["key"] ".temp-norankblock", 0)  
+      close(P["log"] P["key"] ".temp-norankblock")
+      sys2var(Exe["shuf"] " --output=" shquote(P["log"] P["key"] ".temp-norankblock-shuf") " " shquote(P["log"] P["key"] ".temp-norankblock"))
+      close(P["log"] P["key"] ".temp-norankblock-shuf")
+      norankblock = readfile(P["log"] P["key"] ".temp-norankblock-shuf")
+      removefile2(P["log"] P["key"] ".temp-norankblock")
+      removefile2(P["log"] P["key"] ".temp-norankblock-shuf")
+
+      nc = split(norankblock, na, "\n")
+      save_sorted = PROCINFO["sorted_in"]
+      PROCINFO["sorted_in"] = "@val_str_asc"
+      for(nu = 1; nu <= nc; nu++) {
+        html = html "|-\n"
+        html = html "| Top " toprankno " Unranked\n"
+        match(na[nu], /^[ ]*[0-9]+[ ]*/, d)
+        re = "^" d[0]
+        sub(re, "", na[nu])
+        na[nu] = strip(na[nu])
+        parallelWrite(na[nu], P["log"] P["key"] ".debug-nu2", 0)         
+        if(O[na[nu]] == 1)       # opt-out 
+          html = html "| [[" T[P["key"]]["optoutpage"] "|[" T[P["key"]]["anonymous"] "]]]\n"
+        else if(empty(na[nu]))   # unusual empty name maybe caused by right2left Arabic unicode
+          html = html "| [[" T[P["key"]]["optoutpage"] "|[" T[P["key"]]["anonymous"] "]]]\n"
+        else
+          html = html "| [[" T[P["key"]]["User"] ":" na[nu] "|" na[nu] "]]\n"
+        # html = html "| " gsubi(",", T[P["key"]]["thousand"], sprintf("%'d", d[0])) "\n"
+        html = html "| {{safe|[count protected]}}\n"
+      }      
+      PROCINFO["sorted_in"] = save_sorted
+    } 
 
     # For each name create a table entry
     c = split(userblock, a, "\n")
@@ -401,7 +460,7 @@ function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,s
         match(a[j], /^[ ]*[0-9]+[ ]*/, d)
         re = "^" d[0]
         sub(re, "", a[j])
-        if(O[a[j]] == 1)       # opt-out
+        if(O[a[j]] == 1)       # opt-out 
           html = html "| [[" T[P["key"]]["optoutpage"] "|[" T[P["key"]]["anonymous"] "]]]\n"
         else if(empty(strip(a[j])))   # unusual empty name maybe caused by right2left Arabic unicode
           html = html "| [[" T[P["key"]]["optoutpage"] "|[" T[P["key"]]["anonymous"] "]]]\n"
@@ -409,20 +468,17 @@ function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,s
           html = html "| [[" T[P["key"]]["User"] ":" a[j] "|" a[j] "]]\n"
         html = html "| " gsubi(",", T[P["key"]]["thousand"], sprintf("%'d", d[0])) "\n"
 
-        # Sanity check alert if numbers don't seem right
-        if(Hostname == "en" && a[j] == "Encyclopædius" && int(d[0]) < 90000)
-          sys2var(Exe["mailx"] " -s " shquote("NOTIFY: " BotName "(" Hostname "." Domain "). Sanity check 'User:Encyclopædius' < 90000. Check why.") " " P["email"] " < /dev/null")
       }
     }
     html = html "|-\n"
     html = html "|}\n"
 
     removefile2(P["db"] P["key"] "." blockid ".html")
-    parallelWrite(html, P["db"] P["key"] "." blockid ".html", 0)
+    parallelWrite(html, P["db"] P["key"] "." blockid ".html", 0)         
 
     blocks++
 
-    if(j < 1001) {
+    if(j < 1001 && i != 1) {
       break
     }
 
@@ -436,18 +492,17 @@ function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,s
 
     if(j == 1) {
       id = 1
-      blockid = "1–1000"
+      blockid = "1?1000"
     }
     else {
       id = (j - 1) "000"
-      blockid = (id + 1) "–" (j "000")
+      blockid = (id + 1) "?" (j "000")
     }
 
     if(checkexists(P["db"] P["key"] "." blockid ".html")) {
       # wikipage = "User:GreenC bot/Job 19/"
       wikipage = T[P["key"]]["mainpage"] "/"
       command = Exe["wikiget"] " -l " Hostname " -P " shquote(P["db"] P["key"] "." blockid ".html") " -E " shquote(wikipage blockid) " -S " shquote(T[P["key"]]["editsummary"] " " blockid)
-
 
       # Try 10 times before a Wipeout!
       for(t = 1; t <= 11; t++) {
@@ -457,8 +512,8 @@ function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,s
           break
         }
         res = sys2var(command)
-        if(res !~ /(success|no[ ]?change)/)
-          sleep(10)
+        if(res !~ /(success|no[ ]?change)/) 
+          sleep(10)        
         else
           break
       }
@@ -500,20 +555,20 @@ function finished(  c,i,a) {
     sys2var(Exe["mailx"] " -s " shquote("NOTIFY: " BotName "(" Hostname "." Domain "). Wipeout! Check why and delete saved files in ~/db and ~/log dirs") " " P["email"] " < /dev/null")
 
     # Log file backups
-
+    
     for(i = 1; i <= splitn(".allpages.done\n.allpages.offset", a, i); i++) {
       if( checkexists(P["log"] P["key"] a[i]) )
         sys2var(Exe["mv"] " " P["log"] P["key"] a[i] " " P["log"] P["key"] a[i] "." date8() )
     }
 
     # db file backups
-
+    
     c = split(".allpages.db .index.db .journal.db .result-raw.db .result-rawoffset.db .result-sorted.db", a, " ")
     for(i = 1; i <= c; i++) {
       if( checkexists(P["db"] P["key"] a[i]) )
         sys2var(Exe["mv"] " " P["db"] P["key"] a[i] " " P["db"] P["key"] a[i] "." date8() )
     }
-  }
+  }  
 
 }
 
@@ -568,7 +623,7 @@ function nfromapi(article,  url,jsonin,jsona,arr) {
 # Concat .result-rawoffset.db to .result-raw.db and delete .result-rawoffset.db
 #
 function flushoffsets() {
-
+   
     if(debug1) parallelWrite("flushoffsets start" " (" datehms() ")", "/dev/stdout", 0)
 
     close(P["db"] P["key"] ".journal-offset.db")
@@ -606,7 +661,7 @@ function flushoffsets() {
 #
 function newallpages(  sort,fs,magic) {
 
-  # re-start
+  # re-start 
   if( ( checkexists(P["log"] P["key"] ".allpages.offset") || checkexists(P["log"] P["key"] ".allpages.done") ) && checkexists(P["db"] P["key"] ".allpages.db") ) {
     parallelWrite("Re-starting pgcount for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
     return 1
@@ -614,7 +669,7 @@ function newallpages(  sort,fs,magic) {
 
   # new start
   else {
-
+ 
     parallelWrite("Starting pgcount for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
 
     # -1 file doesn't exist
@@ -623,6 +678,8 @@ function newallpages(  sort,fs,magic) {
 
     if(Hostname == "tr")
       magic = 6370000
+    else if(Hostname == "sl")
+      magic = 3000000
     else
       magic = 123446648 # Enwiki
 
@@ -642,19 +699,19 @@ function newallpages(  sort,fs,magic) {
       return 0
     }
 
-    if( int(filesize(P["db"] P["key"] ".curpages.db")) < int(magic)) {
+    if( int(filesize(P["db"] P["key"] ".curpages.db")) < int(magic)) {          
       parallelWrite("Error: bad-length curpages.db in newallpages() for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
       return 0
     }
 
-    if( checkexists(P["db"] P["key"] ".curpages.db") )
+    if( checkexists(P["db"] P["key"] ".curpages.db") ) 
         sys2var(Exe["mv"] " " P["db"] P["key"] ".curpages.db " P["db"] P["key"] ".allpages.db" )
     else {
       parallelWrite("Error: unable to find curpages.db in newallpages() for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
       return 0
     }
   }
-
+  
   return 1
 
 }
@@ -699,7 +756,7 @@ function sortdb(dbname,   sort,tempFile,mainFile) {
   if( checkexists(tempFile) ) {
     parallelWrite("Error (3): unable to move sorted file " tempFile " in sortdb() ---- " curtime(), P["log"] P["key"] ".syslog", 0)
     return 0
-  }
+  }  
   if( ! checkexists(mainFile)) {
     parallelWrite("Error (4): unable to find sorted file " mainFile " in sortdb() ---- " curtime(), P["log"] P["key"] ".syslog", 0)
     return 0
@@ -714,7 +771,7 @@ function sortdb(dbname,   sort,tempFile,mainFile) {
 #   See: https://en.wikipedia.org/wiki/Wikipedia_talk:List_of_Wikipedians_by_article_count#Unicode_escaping
 #
 function u8(s) {
-  if(s ~ /\\u/)
+  if(s ~ /\\u/) 
     return gsubi("_", " ", sys2var(Exe["printf"] " " shquote(s)))
   return s
 }
@@ -730,6 +787,12 @@ function date8() {
 #
 function date8dash() {
   return strftime("%Y-%m-%d", systime(), 1)
+}
+#
+# Return current date-eight reverse 2020-10-15 = "15. 10. 2020"
+#
+function date8revsp() {
+  return strftime("%d. %m. %Y.", systime(), 1)
 }
 
 #
@@ -770,7 +833,7 @@ function allPages(   url,results,apfilterredir,aplimit,apiURL) {
 
         url = apiURL "action=query&list=allpages&aplimit=" aplimit "&apfilterredir=" apfilterredir "&apnamespace=0&format=json&formatversion=2&maxlag=5"
 
-        if(! getallpages(url, apiURL, apfilterredir, aplimit) )
+        if(! getallpages(url, apiURL, apfilterredir, aplimit) ) 
           return 0
 
         return 1
@@ -781,7 +844,7 @@ function getallpages(url,apiURL,apfilterredir,aplimit,         jsonin,jsonout,co
         jsonin = getjsonin(url)
         continuecode = getcontinue(jsonin, "apcontinue")
         jsonout = json2var(jsonin)
-        if ( ! empty(jsonout) )
+        if ( ! empty(jsonout) ) 
             parallelWrite(jsonout, P["db"] P["key"] ".curpages.db", 0)
         else {
             parallelWrite("API error in getallpages (1): Empty response for " url, P["log"] P["key"] ".syslog", 0)
@@ -796,7 +859,7 @@ function getallpages(url,apiURL,apfilterredir,aplimit,         jsonin,jsonout,co
             continuecode = getcontinue(jsonin, "apcontinue")
             # continuecode = getcontinue(jsonin, "gapcontinue")
             jsonout = json2var(jsonin)
-            if ( ! empty(jsonout) )
+            if ( ! empty(jsonout) ) 
               parallelWrite(jsonout, P["db"] P["key"] ".curpages.db", 0)
             else {
               parallelWrite("API error in getallpages: Empty response for " url, P["log"] P["key"] ".syslog", 0)
@@ -821,8 +884,8 @@ function getjsonin(url,uniconvert,  i,jsonin,pre,res,retries) {
               if( res ~ "maxlag") {
                 if(i == retries) {
                   sys2var(Exe["mailx"] " -s " shquote("NOTIFY: " BotName "(" Hostname "." Domain ") Maxlag timeout in getjsonin() after " retries " tries aborting script") " " P["email"] " < /dev/null")
-                  parallelWrite(pre jsonin " for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
-                  exit
+                  parallelWrite(pre jsonin " for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)                
+                  exit 
                 }
                 sleep(3)
               }
@@ -869,14 +932,14 @@ function getcontinue(jsonin, method,    jsona,id) {
 #
 function apierror(input, type,   pre, code) {
 
-        if (length(input) < 5)
+        if (length(input) < 5) 
             return "empty"
 
         if (type == "json") {
             if (match(input, /"error"[:]{"code"[:]"[^\"]*","info"[:]"[^\"]*"/, code) > 0) {
                 if(input ~ "maxlag")
                   return "maxlag"
-                else
+                else 
                   return "error"
             }
             else
@@ -933,7 +996,7 @@ function loadindex(sp,   inxblock,alp,inxa,command,a,c,cacheW,cacheS,cacheE) {
 
           delete Inx
 
-          if( int(sp - cacheW) > 0)
+          if( int(sp - cacheW) > 0) 
             cacheS = sp - cacheW
           else {
             cacheS = 1
