@@ -30,6 +30,7 @@
 BEGIN { # Bot cfg
 
   _defaults = "home      = /home/greenc/toolforge/pgcount/ \
+               emailfp   = /home/greenc/toolforge/scripts/secrets/greenc.email \
                version   = 1.0 \
                copyright = 2024"
 
@@ -68,7 +69,7 @@ BEGIN { # Bot cfg
 
 BEGIN {
 
-  G["email"] = readfile("/home/greenc/toolforge/scripts/secrets/greenc.email")
+  G["email"] = readfile(G["emailfp"])
   Agent = "Ask me about " BotName " - " G["email"]
 
   Optind = Opterr = 1
@@ -773,8 +774,9 @@ function sortdb(dbname,   sort,tempFile,mainFile) {
 #   See: https://en.wikipedia.org/wiki/Wikipedia_talk:List_of_Wikipedians_by_article_count#Unicode_escaping
 #
 function u8(s) {
-  if(s ~ /\\u/) 
+  if(s ~ /\\u/) {
     return gsubi("_", " ", sys2var(Exe["printf"] " " shquote(s)))
+  }
   return s
 }
 
