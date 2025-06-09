@@ -947,7 +947,7 @@ function apierror(input, type,   pre, code) {
             return "empty"
 
         if (type == "json") {
-            if (match(input, /"error"[:]{"code"[:]"[^\"]*","info"[:]"[^\"]*"/, code) > 0) {
+            if (match(input, /"error"[:]{"code"[:]"[^"]*","info"[:]"[^"]*"/, code) > 0) {
                 if(input ~ "maxlag")
                   return "maxlag"
                 else 
