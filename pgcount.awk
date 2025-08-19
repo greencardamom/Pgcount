@@ -38,6 +38,7 @@ BEGIN { # Bot cfg
   BotName = "pgcount"          
   Home = G["home"]
   Engine = 3              
+  Agent = "pgcount acre User:GreenC enwiki"
 
   IGNORECASE = 1
 
