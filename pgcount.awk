@@ -776,7 +776,7 @@ function sortdb(dbname,   sort,tempFile,mainFile) {
 #
 function u8(s) {
   if(s ~ /\\u/) {
-    return gsubi("_", " ", sys2var(Exe["printf"] " " shquote(s)))
+    return gsubi("_", " ", sys2var(Exe["printf"] " -- " shquote(s)))
   }
   return s
 }
