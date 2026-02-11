@@ -901,7 +901,7 @@ function getjsonin(url,uniconvert,  i,jsonin,pre,res,retries) {
             pre = "API error: "
 
             for(i = 1; i <= retries; i++) {
-              jsonin = http2var2(url)
+              jsonin = http2var(url)
               res = apierror(jsonin, "json")
               if( res ~ "maxlag") {
                 if(i == retries) {
@@ -1044,50 +1044,3 @@ function loadindex(sp,   inxblock,alp,inxa,command,a,c,cacheW,cacheS,cacheE) {
 
 }
 
-#
-# http2var2() - replicate "wget -q -O- http://..." 
-#
-#   . return the HTML page as a string
-#   . optionally use wget options 'Wget_opts' gobally defined in syscfg.awk - or define it locally
-#   . converts ' to %27 and ’ to %E2%80%99
-#
-#   Requirement: Exe["wget"]
-#   Requirement: Exe["timeout"]
-#
-function http2var2(url, tries,    debug, i, op, wait) {
-
-    debug = 0
-
-    if (!checkexe(Exe["wget"], "wget") || !checkexe(Exe["timeout"], "timeout"))
-        return ""
-
-    if (empty(tries)) tries = 20
-
-    # URL Encoding fix
-    if (url ~ /'/)  gsub(/'/, "%27", url)
-    if (url ~ /’/)  gsub(/’/, "%E2%80%99", url)
-
-    command = Exe["timeout"] " 20m " Exe["wget"] Wget_opts " -q -O- " shquote(url)
-
-    for (i = 1; i <= int(tries); i++) {
-        op = sys2var(command)
-
-        if (!empty(op)) return op
-
-        # Jittered Backoff: (2^i) + 0-10 seconds of random delay
-        # This prevents cron jobs from synchronizing and triggering 429s
-        wait = (2 ^ i) + int(rand() * 10)
-        if (wait > 120) wait = 120
-
-        if (debug) {
-            stdErr("http2var2: 429/Fail. Attempt " i "/" tries ". Retrying in " wait "s...")
-        }
-
-        if (!empty(Exe["sleep"])) {
-            sleep(wait, "unix")
-        } else {
-            system("sleep " wait)
-        }
-    }
-    return ""
-}
