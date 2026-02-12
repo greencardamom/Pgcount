@@ -31,6 +31,7 @@ BEGIN { # Bot cfg
 
   _defaults = "home      = /home/greenc/toolforge/pgcount/ \
                emailfp   = /home/greenc/toolforge/scripts/secrets/greenc.email \
+               userid    = User:GreenC \
                version   = 1.5 \
                copyright = 2026"
 
@@ -38,9 +39,10 @@ BEGIN { # Bot cfg
   BotName = "pgcount"          
   Home = G["home"]
   Engine = 3              
-  G["email"] = strip(readfile(G["emailfp"]))
-  Agent = "pgcount-1.5-2026 (User:GreenC; mailto:" strip(G["email"]) ")"
 
+  # Agent string format non-compliance could result in 429 (too many requests) rejections by WMF API
+  Agent = BotName "-" G["version"] "-" G["copyright"] " (" G["userid"] "; mailto:" strip(readfile(G["emailfp"])) ")"
+  
   IGNORECASE = 1
 
 }
@@ -70,8 +72,6 @@ BEGIN { # Bot cfg
 #   
 
 BEGIN {
-
-  Wget_opts=" --user-agent=\"" Agent "\" --referer=\"https://en.wikipedia.org/wiki/Main_Page\" --no-cookies --ignore-length --no-check-certificate --tries=3 --timeout=120 --waitretry=60 --retry-connrefused --retry-on-http-error=429"
 
   Optind = Opterr = 1
   while ((C = getopt(ARGC, ARGV, "h:d:")) != -1) {
