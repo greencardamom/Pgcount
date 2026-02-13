@@ -776,7 +776,8 @@ function sortdb(dbname,   sort,tempFile,mainFile) {
 #
 function u8(s) {
   if(s ~ /\\u/) {
-    return gsubi("_", " ", sys2var(Exe["printf"] " -- " shquote(s)))
+    # Use hard-coded path to avoid confusion with the shell version which does not work
+    return gsubi("_", " ", sys2var("/usr/bin/printf -- " shquote(s)))
   }
   return s
 }
