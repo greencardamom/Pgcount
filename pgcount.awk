@@ -1055,9 +1055,9 @@ function healthcheckwatch(  command) {
 
   if(G["hostname"] == "en")
     command = "/usr/bin/curl -s -X POST " shquote("https://healthcheckwatch.wbcqanjidyjcjbe.workers.dev/ping/acre-pgcount-en") " -H " shquote("Authorization: Bearer Xn*izT%(^pI8J/q+Mn*ipT%(^pI9J/q") " -H " shquote("Content-Type: application/json") " -d " shquote("{ \"timeout\": 654, \"subject\": \"NOTIFY (HCW): pgcount.awk (en)\", \"body\": \"acre: /home/greenc/toolforge/pgcount/pgcount.awk (en) (no response)\" }")
-  elif(G["hostname"] == "tr")
+  else if(G["hostname"] == "tr")
     command = "/usr/bin/curl -s -X POST " shquote("https://healthcheckwatch.wbcqanjidyjcjbe.workers.dev/ping/acre-pgcount-tr") " -H " shquote("Authorization: Bearer Xn*izT%(^pI8J/q+Mn*ipT%(^pI9J/q") " -H " shquote("Content-Type: application/json") " -d " shquote("{ \"timeout\": 654, \"subject\": \"NOTIFY (HCW): pgcount.awk (tr)\", \"body\": \"acre: /home/greenc/toolforge/pgcount/pgcount.awk (tr) (no response)\" }")
-  elif(G["hostname"] == "sl")
+  else if(G["hostname"] == "sl")
     command = "/usr/bin/curl -s -X POST " shquote("https://healthcheckwatch.wbcqanjidyjcjbe.workers.dev/ping/acre-pgcount-sl") " -H " shquote("Authorization: Bearer Xn*izT%(^pI8J/q+Mn*ipT%(^pI9J/q") " -H " shquote("Content-Type: application/json") " -d " shquote("{ \"timeout\": 654, \"subject\": \"NOTIFY (HCW): pgcount.awk (sl)\", \"body\": \"acre: /home/greenc/toolforge/pgcount/pgcount.awk (sl) (no response)\" }")
   system(command)
   exit
