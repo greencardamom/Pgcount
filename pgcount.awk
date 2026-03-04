@@ -1048,18 +1048,24 @@ function loadindex(sp,   inxblock,alp,inxa,command,a,c,cacheW,cacheS,cacheE) {
 }
 
 #
-# https://github.com/greencardamom/HealthcheckWatch
-# acre:[/home/greenc/toolforge/healthcheckwatch]
+# Ping Healthcheckwatch API
 #
-function healthcheckwatch(  command) {
+# Git: https://github.com/greencardamom/HealthcheckWatch
+# Install: acre:[/home/greenc/toolforge/healthcheckwatch]
+# Library: ~/BotWikiAwk/lib/syscfg.awk
+# Wrapper: ~/scripts/healthcheckwatchping.sh
+#
+function healthcheckwatch() {
 
-  if(G["hostname"] == "en")
-    command = "/usr/bin/curl -s -X POST " shquote("https://healthcheckwatch.wbcqanjidyjcjbe.workers.dev/ping/acre-pgcount-en") " -H " shquote("Authorization: Bearer Xn*izT%(^pI8J/q+Mn*ipT%(^pI9J/q") " -H " shquote("Content-Type: application/json") " -d " shquote("{ \"timeout\": 654, \"subject\": \"NOTIFY (HCW): pgcount.awk (en)\", \"body\": \"acre: /home/greenc/toolforge/pgcount/pgcount.awk (en) (no response)\" }")
-  else if(G["hostname"] == "tr")
-    command = "/usr/bin/curl -s -X POST " shquote("https://healthcheckwatch.wbcqanjidyjcjbe.workers.dev/ping/acre-pgcount-tr") " -H " shquote("Authorization: Bearer Xn*izT%(^pI8J/q+Mn*ipT%(^pI9J/q") " -H " shquote("Content-Type: application/json") " -d " shquote("{ \"timeout\": 654, \"subject\": \"NOTIFY (HCW): pgcount.awk (tr)\", \"body\": \"acre: /home/greenc/toolforge/pgcount/pgcount.awk (tr) (no response)\" }")
-  else if(G["hostname"] == "sl")
-    command = "/usr/bin/curl -s -X POST " shquote("https://healthcheckwatch.wbcqanjidyjcjbe.workers.dev/ping/acre-pgcount-sl") " -H " shquote("Authorization: Bearer Xn*izT%(^pI8J/q+Mn*ipT%(^pI9J/q") " -H " shquote("Content-Type: application/json") " -d " shquote("{ \"timeout\": 654, \"subject\": \"NOTIFY (HCW): pgcount.awk (sl)\", \"body\": \"acre: /home/greenc/toolforge/pgcount/pgcount.awk (sl) (no response)\" }")
-  system(command)
+  if (G["hostname"] == "en") {
+      hcw_ping("acre-pgcount-en", 654, "NOTIFY (HCW): pgcount.awk (en)", "acre: /home/greenc/toolforge/pgcount/pgcount.awk (en) (no response)")
+  }
+  else if (G["hostname"] == "tr") {
+      hcw_ping("acre-pgcount-tr", 654, "NOTIFY (HCW): pgcount.awk (tr)", "acre: /home/greenc/toolforge/pgcount/pgcount.awk (tr) (no response)")
+  }
+  else if (G["hostname"] == "sl") {
+      hcw_ping("acre-pgcount-sl", 654, "NOTIFY (HCW): pgcount.awk (sl)", "acre: /home/greenc/toolforge/pgcount/pgcount.awk (sl) (no response)")
+  }
+  
   exit
-
 }
