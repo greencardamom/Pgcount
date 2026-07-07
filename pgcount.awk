@@ -1,4 +1,4 @@
-#!/usr/local/bin/awk -bE
+#!/usr/bin/awk -bE
 
 #
 # Count number of articles created by top 10,000 users
@@ -899,12 +899,13 @@ function getallpages(url,apiURL,apfilterredir,aplimit,         jsonin,jsonout,co
 #
 function getjsonin(url,uniconvert,  i,jsonin,pre,res,retries) {
 
-            retries = 10 # sometimes times out immediately. http2var() also has retries in-built
+            retries = 10 # sometimes times out immediately. wikiget also has retries in-built
 
             pre = "API error: "
 
             for(i = 1; i <= retries; i++) {
-              jsonin = http2var(url)
+              # Route API reads through wikiget -> Toolforge proxy + OAuth
+              jsonin = sys2var(Exe["wikiget"] " -l " G["hostname"] " -U " shquote(url))
               res = apierror(jsonin, "json")
               if( res ~ "maxlag") {
                 if(i == retries) {
@@ -1058,13 +1059,13 @@ function loadindex(sp,   inxblock,alp,inxa,command,a,c,cacheW,cacheS,cacheE) {
 function healthcheckwatch() {
 
   if (G["hostname"] == "en") {
-      hcw_ping("acre-pgcount-en", 654, "NOTIFY (HCW): pgcount.awk (en)", "acre: /home/greenc/toolforge/pgcount/pgcount.awk (en) (no response)")
+      hcw_ping("slater-pgcount-en", 654, "NOTIFY (HCW): pgcount.awk (en)", "slater: /home/greenc/toolforge/pgcount/pgcount.awk (en) (no response)")
   }
   else if (G["hostname"] == "tr") {
-      hcw_ping("acre-pgcount-tr", 654, "NOTIFY (HCW): pgcount.awk (tr)", "acre: /home/greenc/toolforge/pgcount/pgcount.awk (tr) (no response)")
+      hcw_ping("slater-pgcount-tr", 654, "NOTIFY (HCW): pgcount.awk (tr)", "slater: /home/greenc/toolforge/pgcount/pgcount.awk (tr) (no response)")
   }
   else if (G["hostname"] == "sl") {
-      hcw_ping("acre-pgcount-sl", 654, "NOTIFY (HCW): pgcount.awk (sl)", "acre: /home/greenc/toolforge/pgcount/pgcount.awk (sl) (no response)")
+      hcw_ping("slater-pgcount-sl", 654, "NOTIFY (HCW): pgcount.awk (sl)", "slater: /home/greenc/toolforge/pgcount/pgcount.awk (sl) (no response)")
   }
   
   exit

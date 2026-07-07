@@ -21,6 +21,7 @@ Dependencies
 ========
 * GNU Awk 4.1+
 * [BotWikiAwk](https://github.com/greencardamom/BotWikiAwk) (version Jan 2019 +)
+* [wikiget.awk](https://github.com/greencardamom/Wikiget) 1.51+ (installed automatically with BotWikiAwk). pgcount routes all API reads through `wikiget -U`, preferably with OAuth and the Toolforge private proxy enabled (avoids API 429 rate-limiting).
 * A bot User account with bot permissions for your target wiki.
 
 Installation
