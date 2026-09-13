@@ -36,9 +36,9 @@ BEGIN { # Bot cfg
                copyright = 2026"
 
   asplit(G, _defaults, "[ ]*[=][ ]*", "[ ]{9,}")
-  BotName = "pgcount"          
+  BotName = "pgcount"
   Home = G["home"]
-  Engine = 3              
+  Engine = 3
 
   # Agent string format non-compliance could result in 429 (too many requests) rejections by WMF API
   Agent = BotName "-" G["version"] "-" G["copyright"] " (" G["userid"] "; mailto:" strip(readfile(G["emailfp"])) ")"
@@ -69,7 +69,7 @@ BEGIN { # Bot cfg
 #
 #   ~/log/en.wikipedia.org.allpages.done     - block log of position in allpages.db
 #   ~/log/en.wikipedia.org.allpages.offset   - rolling 10000-long artice log of position in allpages.db
-#   
+#
 
 BEGIN {
 
@@ -92,7 +92,7 @@ BEGIN {
   P["log"] = G["home"] "log/"            # journal logging
   P["db"]  = G["home"] "db/"             # article name database files
   P["key"] = G["hostname"] "." G["domain"]
-  P["blsize"] = 10000               # size of blocks ie. tail -n +# 
+  P["blsize"] = 10000               # size of blocks ie. tail -n +#
 
   # batch mode. 0 = for testing small batch or single page.
   #             1 = for production of allpages.db
@@ -158,7 +158,17 @@ function main() {
 #
 # 
 #
-function startup() {
+function startup(  other) {
+
+  # Bail if a run is already under way for this wiki.
+  #  newallpages() below treats existing state files as "resume from here", but it can't
+  #  tell a dead previous run from a live one - so a crontab start landing on top of a
+  #  months-long run becomes a second worker on the first one's state files.
+  other = otherinstance()
+  if( other ) {
+    parallelWrite("Skipping: " BotName " already running for " P["key"] " as pid " other " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+    return 0
+  }
 
   # Download allpages.db if missing
   if( newallpages() ) {
@@ -262,6 +272,13 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
         exit 0
       }
 
+      # allpages.done is written *after* a block completes, so its last line is the last
+      #  block finished - resume at the one after it. Starting at the logged block re-ran
+      #  10000 already-counted articles on every restart.
+      #  If the bot stopped mid-block, that next block is the partly-done one and the
+      #  offset below resumes it at the right article.
+      startpoint = int(startpoint) + P["blsize"]
+
       parallelWrite(curtime() " ---- Bot (re)start (" startpoint "-" startpoint + (P["blsize"] - 1) ")", P["log"] P["key"] ".restart", 0)
 
     }
@@ -278,8 +295,12 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
         if(offset == 0 || empty(offset) ) {
           offset = 1
         }
-        if(offset > P["blsize"] ) 
-          offset = P["blsize"]
+        # A full-length offset means the block finished but its offset file outlived the
+        #  allpages.done write by a moment. Re-run that block from the top: with the
+        #  startpoint now one block on, keeping the offset would skip 1..blsize-1 and
+        #  leave a hole in the count. Duplicates are repairable, gaps are not.
+        if(offset > P["blsize"] )
+          offset = 1
 
         removefile2(P["log"] P["key"] ".allpages.offset")
 
@@ -354,7 +375,19 @@ function runSearch(  i,a,c,j,bz,sz,ez,sp,z,command,dn,la,startpoint,offset,endal
 #
 # Create and upload wikisource tables
 #
-function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,sort1,sort2,res,blocks,tailstart,c1,c2,c3,c4,stats,nc,nu,na,norankblock,save_sorted,toprankno) {
+function processresult(  command,d,a,c,j,i,t,re,id,blockid,userblock,html,rank,sort1,sort2,res,blocks,tailstart,c1,c2,c3,c4,stats,nc,nu,na,norankblock,save_sorted,toprankno,cr,ca) {
+
+  # Every article is counted at most once, so result-raw.db can never be longer than
+  #  allpages.db. Longer means the same articles were counted twice - duplicated blocks
+  #  inflate each user's total unevenly, which reorders the published ranking. Stop here
+  #  rather than upload it.
+  cr = int(linecount(P["db"] P["key"] ".result-raw.db"))
+  ca = int(linecount(P["db"] P["key"] ".allpages.db"))
+  if(cr > ca) {
+    parallelWrite("Error: result-raw.db (" cr ") longer than allpages.db (" ca ") - duplicate counts, aborting before upload for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+    email(Exe["from_email"], Exe["to_email"], "NOTIFY: " BotName "(" P["key"] ") result-raw.db (" cr ") longer than allpages.db (" ca "). Duplicate counts - nothing uploaded. Check for concurrent runs.", "")
+    exit
+  }
 
   sort1 = Exe["sort"] " --temporary-directory=" G["home"] "db  --buffer-size=40M --parallel=1 " P["db"] P["key"] ".result-raw.db"
   sort2 = Exe["sort"] " --temporary-directory=" G["home"] "log --buffer-size=40M --parallel=1 -nr"
@@ -575,6 +608,54 @@ function finished(  c,i,a) {
         sys2var(Exe["mv"] " " P["db"] P["key"] a[i] " " P["db"] P["key"] a[i] "." date8() )
     }
   }  
+
+}
+
+#
+# Is another pgcount already running for this wiki?
+#
+#  Deliberately not a lock file. pgcount is built to be stopped and resumed, and a
+#  kill -9 or a reboot leaves a lock file behind that would block the next restart.
+#  The process table carries no such residue.
+#
+#  Matches on BotName plus "-h <hostname>", so a run for a different wiki (or
+#  push_pgcount_src.sh, which has "pgcount" in its name but no -h) is not a match.
+#  Skips this process and its parent - a crontab start is wrapped in a shell whose
+#  command line is the same string.
+#
+#  Returns the pid of the other instance, or 0 if this is the only one.
+#
+function otherinstance(  i,a,c,line,sp,pid,args,me,parent,re) {
+
+  me = int(PROCINFO["pid"])
+  parent = int(PROCINFO["ppid"])
+  re = "[-]h[ ]+" G["hostname"] "([ ]|$)"
+
+  # Filter in awk, not in the pipeline - a "| grep pgcount" would match its own shell
+  c = split(sys2var(Exe["ps"] " -eo pid=,args="), a, "\n")
+
+  for(i = 1; i <= c; i++) {
+
+    line = strip(a[i])
+    sp = index(line, " ")
+    if(sp < 2)
+      continue
+
+    pid = int(substr(line, 1, sp - 1))
+    args = substr(line, sp + 1)
+
+    if(pid == me || pid == parent)
+      continue
+    if(args !~ BotName)
+      continue
+    if(args !~ re)
+      continue
+
+    return pid
+
+  }
+
+  return 0
 
 }
 
