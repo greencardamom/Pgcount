@@ -40,6 +40,10 @@ BEGIN { # Bot cfg
   Home = G["home"]
   Engine = 3
 
+  # Set before @include so syscfg.awk's guarded defaults honor it. syscfg has no entries for these
+  Exe["pgindex"] = G["home"] "pgindex.sh"    # dump -> index.db builder. See 0BUILDER.md
+  Exe["pgalign"] = G["home"] "pgalign.sh"    # re-align index.db to a fresh allpages.db
+
   # Agent string format non-compliance could result in 429 (too many requests) rejections by WMF API
   Agent = BotName "-" G["version"] "-" G["copyright"] " (" G["userid"] "; mailto:" strip(readfile(G["emailfp"])) ")"
   
@@ -74,12 +78,14 @@ BEGIN { # Bot cfg
 BEGIN {
 
   Optind = Opterr = 1
-  while ((C = getopt(ARGC, ARGV, "h:d:")) != -1) {
+  while ((C = getopt(ARGC, ARGV, "h:d:R")) != -1) {
       opts++
       if(C == "h")                 #  -h <hostname>   Hostname eg. "en"
         G["hostname"] = verifyval(Optarg)
       if(C == "d")                 #  -d <domain>     Domain eg. "wikipedia.org"
         G["domain"] = verifyval(Optarg)
+      if(C == "R")                 #  -R              Rebuild index.db from a dump before crawling,
+        G["rebuild"] = 1           #                  even if one already exists. See buildindex()
   }
 
   if(opts == 0 || empty(G["domain"]) || empty(G["hostname"]) ) {
@@ -176,11 +182,22 @@ function startup(  other) {
     # Flush offsets if they exist
     flushoffsets()
 
+    # Seed the cache from a dump rather than crawling every article through the API.
+    #  Runs here because newallpages() has just produced allpages.db, which the builder
+    #  joins against so index.db comes out aligned line-for-line.
+    if( G["rebuild"] || ( ! checkexists(P["db"] P["key"] ".index.db") && P["freshstart"] ) )
+      buildindex()
+
+    # Re-align the cache to the allpages.db just built. Only on a fresh start: mid-run the
+    #  index is already aligned to the allpages.db this run is walking.
+    if( P["freshstart"] && checkexists(P["db"] P["key"] ".index.db") )
+      alignindex()
+
     # Flag if index.db exists, needed info later
     if (checkexists(P["db"] P["key"] ".index.db") )
       P["index"] = 1
     else
-      P["index"] = 0 
+      P["index"] = 0
   }
   else {            # error creating/finding allpages.db
     return 0
@@ -744,19 +761,94 @@ function flushoffsets() {
 }
 
 #
+# Seed index.db from a Wikimedia stub-meta-history dump instead of crawling the API
+#
+#  A from-scratch enwiki build is ~41 days because every one of 7.2M articles is its own
+#  API call. The same creator data sits in the monthly dumps and extracts in hours.
+#  Full design, measurements and open questions: 0BUILDER.md
+#
+#  Called only when there is no cache to use: either a fresh start with no index.db, or
+#  -R. Mid-run there is no index.db either - it does not exist until finished() promotes
+#  journal.db - so P["freshstart"] gates this. Without that gate every restart of a run
+#  in progress would launch a multi-hour download on top of a live crawl.
+#
+#  Never fatal. On any failure log it and return with index.db still absent, so the run
+#  falls through to the API crawl. Slow is an acceptable degradation, aborting is not.
+#
+function buildindex(  command,res,logfile) {
+
+  logfile = P["log"] P["key"] ".index-build.log"
+
+  parallelWrite("Building index.db from dump for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+
+  # system() not sys2var(): we want the exit status, and this runs for hours - its output
+  #  belongs in a log, not accumulating in a variable
+  # -H passes our own home, so the helper cannot resolve paths against a different tree
+  command = Exe["pgindex"] " -H " shquote(G["home"]) " -h " shquote(G["hostname"]) " -d " shquote(G["domain"]) " >> " shquote(logfile) " 2>&1"
+  res = system(command)
+  system("")
+
+  if( res != 0 ) {
+    parallelWrite("Error: index build failed (exit " res ") for " P["key"] " - continuing without cache, see " logfile " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+    email(Exe["from_email"], Exe["to_email"], "NOTIFY: " BotName "(" P["key"] ") index build failed (exit " res "). Run continues against the API without a cache.", "")
+    return
+  }
+
+  if( ! checkexists(P["db"] P["key"] ".index.db") ) {
+    parallelWrite("Error: index build reported success but " P["key"] ".index.db is missing - continuing without cache ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+    return
+  }
+
+  parallelWrite("Index build complete for " P["key"] " (" linecount(P["db"] P["key"] ".index.db") " entries) ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+
+}
+
+#
+# Re-align index.db to the allpages.db just built
+#
+#  loadindex() reads a window of index.db by line number, assuming index line N matches
+#  allpages line N. That decays as articles are created and deleted, and once the drift
+#  exceeds its +/-30000 window the lookups miss and we pay the API for articles the cache
+#  already holds. pgalign.sh rebuilds index.db in allpages order with a placeholder row for
+#  every uncovered article, so the two files are line-for-line and drift is zero.
+#
+#  Never fatal. On failure the existing index.db is left untouched and the run continues
+#  with whatever alignment it had.
+#
+function alignindex(  command,res,logfile) {
+
+  logfile = P["log"] P["key"] ".index-align.log"
+
+  # -H passes our own home, so the helper cannot resolve paths against a different tree
+  command = Exe["pgalign"] " -H " shquote(G["home"]) " -h " shquote(G["hostname"]) " -d " shquote(G["domain"]) " >> " shquote(logfile) " 2>&1"
+  res = system(command)
+  system("")
+
+  if( res != 0 ) {
+    parallelWrite("Error: index alignment failed (exit " res ") for " P["key"] " - continuing with the existing index, see " logfile " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+    return
+  }
+
+  parallelWrite("Index aligned for " P["key"] " (" linecount(P["db"] P["key"] ".index.db") " entries) ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+
+}
+
+#
 # create allpages.db
 #
 function newallpages(  sort,fs,magic) {
 
-  # re-start 
+  # re-start
   if( ( checkexists(P["log"] P["key"] ".allpages.offset") || checkexists(P["log"] P["key"] ".allpages.done") ) && checkexists(P["db"] P["key"] ".allpages.db") ) {
+    P["freshstart"] = 0        # work in progress - index.db is *expected* to be absent. See buildindex()
     parallelWrite("Re-starting pgcount for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
     return 1
   }
 
   # new start
   else {
- 
+
+    P["freshstart"] = 1
     parallelWrite("Starting pgcount for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
 
     # -1 file doesn't exist
