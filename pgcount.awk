@@ -43,6 +43,7 @@ BEGIN { # Bot cfg
   # Set before @include so syscfg.awk's guarded defaults honor it. syscfg has no entries for these
   Exe["pgindex"] = G["home"] "pgindex.sh"    # dump -> index.db builder. See 0BUILDER.md
   Exe["pgalign"] = G["home"] "pgalign.sh"    # re-align index.db to a fresh allpages.db
+  Exe["allpages"] = "/home/greenc/scripts/allpages.awk"   # download list of all page titles. Ships with BotWikiAwk (bin/)
 
   # Agent string format non-compliance could result in 429 (too many requests) rejections by WMF API
   Agent = BotName "-" G["version"] "-" G["copyright"] " (" G["userid"] "; mailto:" strip(readfile(G["emailfp"])) ")"
@@ -998,71 +999,44 @@ function linecount(file,  a) {
   return strip(a[1])
 }
 
-# ___ All pages (-A)
+# ___ All pages
 
-# adapted from wikiget.awk writes real-time instead of uniq - this saves memory
-#  write to curpages.db
 #
-# MediaWiki API: Allpages
-#  https://www.mediawiki.org/wiki/API:Allpages
+# Download every ns0 article title to curpages.db
 #
-function allPages(   url,results,apfilterredir,aplimit,apiURL) {
+#  Delegates to allpages.awk, a standalone utility. It scans 5000 rows per request through
+#  the OAuth account's apihighlimits instead of 500, refuses to append to an existing list
+#  rather than silently corrupting it, and returns a real exit status - the code this
+#  replaced returned success even after giving up part way through a crawl.
+#
+#  MediaWiki API: Allpages  https://www.mediawiki.org/wiki/API:Allpages
+#
+function allPages(  command,res,outfile,logfile) {
 
-        apfilterredir = "nonredirects"
-        aplimit = 500
-        apiURL = "https://" P["key"] "/w/api.php?"
+  outfile = P["db"] P["key"] ".curpages.db"
+  logfile = P["log"] P["key"] ".allpages.log"
 
-        url = apiURL "action=query&list=allpages&aplimit=" aplimit "&apfilterredir=" apfilterredir "&apnamespace=0&format=json&formatversion=2&maxlag=5"
+  # Trap: an external dependency, and the only one living outside the pgcount tree. Without
+  #  this the symptom is a shell "not found" buried in a log and an empty curpages.db.
+  if( ! checkexists(Exe["allpages"]) ) {
+    parallelWrite("Error: " Exe["allpages"] " not found - cannot build curpages.db for " P["key"] " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+    email(Exe["from_email"], Exe["to_email"], "NOTIFY: " BotName "(" P["key"] ") cannot find " Exe["allpages"] ". Install it, or correct Exe[\"allpages\"] in pgcount.awk.", "")
+    return 0
+  }
 
-        if(! getallpages(url, apiURL, apfilterredir, aplimit) ) 
-          return 0
+  # allpages.awk will not write over an existing list, so clear any partial one first
+  removefile2(outfile)
 
-        return 1
+  command = Exe["allpages"] " -l " shquote(G["hostname"]) " -z " shquote(G["domain"]) " -n 0 -o " shquote(outfile) " -g " shquote(logfile) " -c " shquote(BotName) " >> " shquote(logfile) " 2>&1"
+  res = system(command)
+  system("")
 
-}
+  if( res != 0 ) {
+    parallelWrite("Error: allpages.awk exited " res " building curpages.db for " P["key"] " - see " logfile " ---- " curtime(), P["log"] P["key"] ".syslog", 0)
+    return 0
+  }
 
-function getallpages(url,apiURL,apfilterredir,aplimit,         jsonin,jsonout,continuecode,count,i,a,z,flag,res_snippet) {
-
-        jsonin = getjsonin(url)
-        continuecode = getcontinue(jsonin, "apcontinue")
-        jsonout = json2var(jsonin)
-        if ( ! empty(jsonin) ) {
-          # Only write to the DB if we actually got page data
-          if ( ! empty(jsonout) ) {
-            parallelWrite(jsonout, P["db"] P["key"] ".curpages.db", 0)
-          }
-        } else {
-          # This only triggers if the web request itself failed (truly empty)
-          res_snippet = "[EMPTY STRING]"
-          parallelWrite("API error in getallpages (1): Response=" res_snippet " for " url, P["log"] P["key"] ".syslog", 0)
-        }
-
-        z = 2
-        while ( continuecode != "-1-1!!-1-1" ) {
-            url = apiURL "action=query&list=allpages&aplimit=" aplimit "&apfilterredir=" apfilterredir "&apnamespace=0&apcontinue=" urlencodeawk(continuecode, "rawphp") "&continue=" urlencodeawk("-||") "&format=json&formatversion=2&maxlag=10&origin=*"
-            # url = apiURL "action=query&generator=allpages&gaplimit=" aplimit "&gapnamespace=0&gapcontinue=" urlencodeawk(continuecode, "rawphp") "&continue=" urlencodeawk("-||") "&format=json&formatversion=2&prop=info&maxlag=4"
-
-            flag = 0
-            for(i = 1; i <= 4; i++) {
-              if(flag) break
-              jsonin = getjsonin(url)
-              continuecode = getcontinue(jsonin, "apcontinue")
-              jsonout = json2var(jsonin)
-              if ( ! empty(jsonin) ) {
-                # Only save if pages were found; otherwise, we just move to the next continuecode
-                if ( ! empty(jsonout) ) {
-                  parallelWrite(jsonout, P["db"] P["key"] ".curpages.db", 0)
-                }
-                flag = 1 # Mark as success because we got a response and a new continuecode
-              }
-            }
-            if (flag == 0) {
-              res_snippet = empty(jsonin) ? "[EMPTY STRING]" : substr(jsonin, 1, 100)
-              parallelWrite("API error in getallpages (Loop): Response=" res_snippet " for " url, P["log"] P["key"] ".syslog", 0)
-              break
-            }
-        }
-        return 1
+  return 1
 
 }
 
@@ -1116,19 +1090,6 @@ function getjsonin(url,uniconvert,  i,jsonin,pre,res,retries) {
 }
 
 #
-# Parse continue code from JSON input
-#
-function getcontinue(jsonin, method,    jsona,id) {
-
-        if( query_json(jsonin, jsona) >= 0) {
-          id = jsona["continue", method]
-          if(!empty(id))
-            return id
-        }
-        return "-1-1!!-1-1"     # return a string that isn't an actual page name (hopefully)
-}
-
-#
 # Basic check of API results for error
 #
 function apierror(input, type,   pre, code) {
@@ -1146,16 +1107,6 @@ function apierror(input, type,   pre, code) {
             else
               return "OK"
         }
-}
-
-#
-# json2var - given raw json extract field "title" and convert to \n seperated string
-#
-function json2var(json,  jsona,arr) {
-    if (query_json(json, jsona) >= 0) {
-        splitja(jsona, arr, 3, "title")
-        return join(arr, 1, length(arr), "\n")
-    }
 }
 
 #
